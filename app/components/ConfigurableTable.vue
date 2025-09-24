@@ -74,7 +74,7 @@ onMounted(() => {
   
   console.log('🎯 Final loaded state:', {
     columnOrder: columnOrder.value,
-    columnState: columnState.value
+    columnState: columnState.value,
   });
 });
 
@@ -664,6 +664,7 @@ function getCellClass(col: ColumnDef, row: Row) {
     width: 100%;
     border-collapse: collapse;
     font-size: 14px;
+    transition: all 0.3s ease;
   }
 
   &__thead {
@@ -682,7 +683,7 @@ function getCellClass(col: ColumnDef, row: Row) {
     border-right: 1px solid #e5e7eb;
     white-space: nowrap;
     position: relative;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
 
     &:last-child {
       border-right: none;
