@@ -40,14 +40,10 @@ const isTableReady = ref(false);
 
 // Load saved data after component is mounted
 onMounted(() => {
-  console.log('🚀 Component mounted - loading from localStorage');
-
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    console.log('📦 Column state from localStorage:', raw);
     if (raw) {
       const savedState = JSON.parse(raw);
-      console.log('✅ Loading saved column state:', savedState);
       columnState.value = savedState;
     }
   } catch (error) {
@@ -56,15 +52,12 @@ onMounted(() => {
 
   try {
     const orderRaw = localStorage.getItem(STORAGE_ORDER_KEY);
-    console.log('📦 Column order from localStorage:', orderRaw);
     if (orderRaw) {
       const savedOrder = JSON.parse(orderRaw);
-      console.log('✅ Loading saved column order:', savedOrder);
       // Ensure all columns are in the order array
       const allKeys = props.columns.map(c => c.key);
       const missingKeys = allKeys.filter(key => !savedOrder.includes(key));
       if (missingKeys.length > 0) {
-        console.log('🔧 Adding missing keys to order:', missingKeys);
         savedOrder.push(...missingKeys);
       }
       columnOrder.value = savedOrder;
@@ -73,20 +66,13 @@ onMounted(() => {
     console.error('❌ Error loading column order:', error);
   }
 
-  console.log('🎯 Final loaded state:', {
-    columnOrder: columnOrder.value,
-    columnState: columnState.value,
-  });
-
   // Mark table as ready to show
   isTableReady.value = true;
-  console.log('✅ Table is now ready to display');
 });
 
 watch(
   columnState,
   v => {
-    console.log('💾 Saving column state to localStorage:', v);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
   },
   { deep: true }
@@ -94,49 +80,28 @@ watch(
 
 watch(
   columnOrder,
-  (newOrder, oldOrder) => {
-    console.log('🔄 COLUMN ORDER CHANGED:', {
-      oldOrder: oldOrder || 'undefined',
-      newOrder: newOrder,
-      timestamp: new Date().toISOString(),
-    });
-    console.log('💾 Saving column order to localStorage:', newOrder);
+  newOrder => {
     localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(newOrder));
   },
   { deep: true }
 );
 
 const allColumns = computed<ColumnDef[]>(() => {
-  console.log('🔄 Computing allColumns with order:', columnOrder.value);
   // Sort columns according to the saved order
   const sorted = [...props.columns].sort((a, b) => {
     const indexA = columnOrder.value.indexOf(a.key);
     const indexB = columnOrder.value.indexOf(b.key);
     return indexA - indexB;
   });
-  console.log(
-    '📋 Sorted columns:',
-    sorted.map(c => c.key)
-  );
   return sorted;
 });
 
 const visibleColumns = computed<ColumnDef[]>(() => {
-  const visible = allColumns.value.filter(c => columnState.value[c.key] !== false);
-  console.log(
-    '👁️ Visible columns:',
-    visible.map(c => c.key)
-  );
-  return visible;
+  return allColumns.value.filter(c => columnState.value[c.key] !== false);
 });
 
 const hiddenColumns = computed<ColumnDef[]>(() => {
-  const hidden = allColumns.value.filter(c => columnState.value[c.key] === false);
-  console.log(
-    '🙈 Hidden columns:',
-    hidden.map(c => c.key)
-  );
-  return hidden;
+  return allColumns.value.filter(c => columnState.value[c.key] === false);
 });
 
 // ---------- helpers
@@ -280,11 +245,6 @@ const draggedColumn = ref<string | null>(null);
 const dragOverColumn = ref<string | null>(null);
 
 function handleDragStart(event: DragEvent, columnKey: string) {
-  console.log('🚀 DRAG START:', {
-    columnKey,
-    currentOrder: [...columnOrder.value],
-    draggedIndex: columnOrder.value.indexOf(columnKey),
-  });
   draggedColumn.value = columnKey;
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
@@ -297,11 +257,6 @@ function handleDragOver(event: DragEvent, columnKey: string) {
   if (event.dataTransfer) {
     event.dataTransfer.dropEffect = 'move';
   }
-  console.log('🎯 DRAG OVER:', {
-    draggedColumn: draggedColumn.value,
-    targetColumn: columnKey,
-    dragOverColumn: dragOverColumn.value,
-  });
   dragOverColumn.value = columnKey;
 }
 
@@ -311,34 +266,15 @@ function handleDragLeave(event: DragEvent) {
   const x = event.clientX;
   const y = event.clientY;
 
-  console.log('🚪 DRAG LEAVE:', {
-    clientX: x,
-    clientY: y,
-    rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
-    isLeavingArea: x < rect.left || x > rect.right || y < rect.top || y > rect.bottom,
-    currentDragOver: dragOverColumn.value,
-  });
-
   if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-    console.log('🚪 CLEARING dragOverColumn');
     dragOverColumn.value = null;
   }
 }
 
 function handleDrop(event: DragEvent, targetColumnKey: string) {
   event.preventDefault();
-  console.log('🎯 DROP EVENT START:', {
-    dragged: draggedColumn.value,
-    target: targetColumnKey,
-    timestamp: new Date().toISOString(),
-  });
 
   if (!draggedColumn.value || draggedColumn.value === targetColumnKey) {
-    console.log('❌ INVALID DROP - same column or no dragged column:', {
-      draggedColumn: draggedColumn.value,
-      targetColumn: targetColumnKey,
-      isSameColumn: draggedColumn.value === targetColumnKey,
-    });
     draggedColumn.value = null;
     dragOverColumn.value = null;
     return;
@@ -348,19 +284,9 @@ function handleDrop(event: DragEvent, targetColumnKey: string) {
   const draggedIndex = currentOrder.indexOf(draggedColumn.value);
   const targetIndex = currentOrder.indexOf(targetColumnKey);
 
-  console.log('📊 BEFORE REORDER:', {
-    currentOrder: [...currentOrder],
-    draggedColumn: draggedColumn.value,
-    targetColumn: targetColumnKey,
-    draggedIndex,
-    targetIndex,
-    dragDirection: draggedIndex < targetIndex ? 'LEFT_TO_RIGHT' : 'RIGHT_TO_LEFT',
-  });
-
   if (draggedIndex !== -1 && targetIndex !== -1) {
     // Remove dragged column from its current position
     const removedItem = currentOrder.splice(draggedIndex, 1)[0];
-    console.log('✂️ REMOVED ITEM:', { removedItem, newOrderAfterRemoval: [...currentOrder] });
 
     // Calculate insertion index
     // We want to insert the dragged item AFTER the target position when dragging left to right
@@ -377,48 +303,17 @@ function handleDrop(event: DragEvent, targetColumnKey: string) {
       newTargetIndex = targetIndex;
     }
 
-    console.log('🎯 INSERTION CALCULATION:', {
-      originalTargetIndex: targetIndex,
-      calculatedNewTargetIndex: newTargetIndex,
-      reason:
-        draggedIndex < targetIndex
-          ? 'LEFT_TO_RIGHT: insert AFTER target (at targetIndex)'
-          : 'RIGHT_TO_LEFT: insert BEFORE target (at targetIndex)',
-      explanation:
-        draggedIndex < targetIndex
-          ? 'When dragging left to right, we want the dragged item to appear AFTER the target'
-          : 'When dragging right to left, we want the dragged item to appear BEFORE the target',
-    });
-
     currentOrder.splice(newTargetIndex, 0, draggedColumn.value);
-
-    console.log('🔄 AFTER REORDER:', {
-      finalOrder: [...currentOrder],
-      insertedAt: newTargetIndex,
-      success: true,
-    });
 
     columnOrder.value = currentOrder;
   } else {
-    console.log('❌ INVALID INDICES:', {
-      draggedIndex,
-      targetIndex,
-      draggedColumn: draggedColumn.value,
-      targetColumn: targetColumnKey,
-    });
   }
 
-  console.log('🏁 DROP EVENT END');
   draggedColumn.value = null;
   dragOverColumn.value = null;
 }
 
 function handleDragEnd() {
-  console.log('🏁 DRAG END:', {
-    draggedColumn: draggedColumn.value,
-    dragOverColumn: dragOverColumn.value,
-    timestamp: new Date().toISOString(),
-  });
   draggedColumn.value = null;
   dragOverColumn.value = null;
 }
