@@ -36,11 +36,12 @@ const defaultColumnOrder = props.columns.map(c => c.key);
 
 const columnState = ref<Record<string, boolean>>(defaultColumnState);
 const columnOrder = ref<string[]>(defaultColumnOrder);
+const isTableReady = ref(false);
 
 // Load saved data after component is mounted
 onMounted(() => {
   console.log('🚀 Component mounted - loading from localStorage');
-  
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     console.log('📦 Column state from localStorage:', raw);
@@ -71,11 +72,15 @@ onMounted(() => {
   } catch (error) {
     console.error('❌ Error loading column order:', error);
   }
-  
+
   console.log('🎯 Final loaded state:', {
     columnOrder: columnOrder.value,
     columnState: columnState.value,
   });
+  
+  // Mark table as ready to show
+  isTableReady.value = true;
+  console.log('✅ Table is now ready to display');
 });
 
 watch(
@@ -410,7 +415,11 @@ function getCellClass(col: ColumnDef, row: Row) {
 
     <!-- Table -->
     <div class="transaction-table__container">
-      <table class="transaction-table__table">
+      <div v-if="!isTableReady" class="transaction-table__loading">
+        <div class="transaction-table__spinner"></div>
+        <span>Loading table...</span>
+      </div>
+      <table v-else class="transaction-table__table">
         <thead class="transaction-table__thead">
           <tr class="transaction-table__header-row">
             <!-- Select-All -->
@@ -658,6 +667,31 @@ function getCellClass(col: ColumnDef, row: Row) {
 
   &__container {
     overflow-x: auto;
+  }
+
+  &__loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: #6b7280;
+    font-size: 14px;
+  }
+
+  &__spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #e5e7eb;
+    border-top: 2px solid #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 12px;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 
   &__table {
