@@ -833,8 +833,7 @@ function getCellClass(col: ColumnDef, row: Row) {
 
     &--drag-over {
       background: #dbeafe;
-      border-left: 3px solid #3b82f6;
-      border-right: 3px solid #3b82f6;
+      opacity: 0.5;
     }
 
     &:hover {
