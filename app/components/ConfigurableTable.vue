@@ -26,9 +26,11 @@ const emit = defineEmits<{
 // ---------- Search query (internal state)
 const searchQuery = ref(props.searchQuery || '');
 
-// ---------- Column visibility (persist in localStorage)
+// ---------- Column visibility and order (persist in localStorage)
 const STORAGE_KEY = `table.columns:${props.tableId}`;
+const STORAGE_ORDER_KEY = `table.columns.order:${props.tableId}`;
 const columnState = ref<Record<string, boolean>>({});
+const columnOrder = ref<string[]>([]);
 
 function initColumnState() {
   try {
@@ -39,6 +41,22 @@ function initColumnState() {
     }
   } catch {
     columnState.value = Object.fromEntries(props.columns.map(c => [c.key, c.visible ?? true]));
+  }
+
+  // Initialize column order
+  try {
+    const orderRaw = localStorage.getItem(STORAGE_ORDER_KEY);
+    if (orderRaw) {
+      columnOrder.value = JSON.parse(orderRaw);
+      // Ensure all columns are in the order array
+      const allKeys = props.columns.map(c => c.key);
+      const missingKeys = allKeys.filter(key => !columnOrder.value.includes(key));
+      columnOrder.value = [...columnOrder.value, ...missingKeys];
+    } else {
+      columnOrder.value = props.columns.map(c => c.key);
+    }
+  } catch {
+    columnOrder.value = props.columns.map(c => c.key);
   }
 }
 initColumnState();
@@ -51,9 +69,30 @@ watch(
   { deep: true }
 );
 
-const allColumns = computed<ColumnDef[]>(() => props.columns);
-const visibleColumns = computed<ColumnDef[]>(() => allColumns.value.filter(c => columnState.value[c.key] !== false));
-const hiddenColumns = computed<ColumnDef[]>(() => allColumns.value.filter(c => columnState.value[c.key] === false));
+watch(
+  columnOrder,
+  v => {
+    localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(v));
+  },
+  { deep: true }
+);
+
+const allColumns = computed<ColumnDef[]>(() => {
+  // Sort columns according to the saved order
+  return [...props.columns].sort((a, b) => {
+    const indexA = columnOrder.value.indexOf(a.key);
+    const indexB = columnOrder.value.indexOf(b.key);
+    return indexA - indexB;
+  });
+});
+
+const visibleColumns = computed<ColumnDef[]>(() => 
+  allColumns.value.filter(c => columnState.value[c.key] !== false)
+);
+
+const hiddenColumns = computed<ColumnDef[]>(() => 
+  allColumns.value.filter(c => columnState.value[c.key] === false)
+);
 
 // ---------- helpers
 function keyOf(row: Row, idx: number): string | number {
@@ -191,6 +230,70 @@ function onColumnChange(key: string, checked: boolean) {
   columnState.value[key] = checked;
 }
 
+// ---------- Drag and Drop functionality
+const draggedColumn = ref<string | null>(null);
+const dragOverColumn = ref<string | null>(null);
+
+function handleDragStart(event: DragEvent, columnKey: string) {
+  draggedColumn.value = columnKey;
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', columnKey);
+  }
+}
+
+function handleDragOver(event: DragEvent, columnKey: string) {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+  dragOverColumn.value = columnKey;
+}
+
+function handleDragLeave(event: DragEvent) {
+  // Only clear if we're leaving the entire header area
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const x = event.clientX;
+  const y = event.clientY;
+  
+  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+    dragOverColumn.value = null;
+  }
+}
+
+function handleDrop(event: DragEvent, targetColumnKey: string) {
+  event.preventDefault();
+  
+  if (!draggedColumn.value || draggedColumn.value === targetColumnKey) {
+    draggedColumn.value = null;
+    dragOverColumn.value = null;
+    return;
+  }
+
+  const currentOrder = [...columnOrder.value];
+  const draggedIndex = currentOrder.indexOf(draggedColumn.value);
+  const targetIndex = currentOrder.indexOf(targetColumnKey);
+
+  if (draggedIndex !== -1 && targetIndex !== -1) {
+    // Remove dragged column from its current position
+    currentOrder.splice(draggedIndex, 1);
+    
+    // Insert it at the new position
+    const newTargetIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    currentOrder.splice(newTargetIndex, 0, draggedColumn.value);
+    
+    columnOrder.value = currentOrder;
+  }
+
+  draggedColumn.value = null;
+  dragOverColumn.value = null;
+}
+
+function handleDragEnd() {
+  draggedColumn.value = null;
+  dragOverColumn.value = null;
+}
+
 // ---------- Helper functions for styling
 function getCellClass(col: ColumnDef, row: Row) {
   const classes = [];
@@ -284,14 +387,32 @@ function getCellClass(col: ColumnDef, row: Row) {
               v-for="col in visibleColumns"
               :key="col.key"
               class="transaction-table__th"
-              :class="{ 'transaction-table__th--sortable': col.sortable }"
+              :class="{ 
+                'transaction-table__th--sortable': col.sortable,
+                'transaction-table__th--dragging': draggedColumn === col.key,
+                'transaction-table__th--drag-over': dragOverColumn === col.key
+              }"
               :style="{ width: col.width || 'auto', textAlign: col.align || 'left' }"
+              draggable="true"
               @click="sortBy(col)"
+              @dragstart="handleDragStart($event, col.key)"
+              @dragover="handleDragOver($event, col.key)"
+              @dragleave="handleDragLeave($event)"
+              @drop="handleDrop($event, col.key)"
+              @dragend="handleDragEnd"
             >
               <span class="transaction-table__th-content">
+                <svg 
+                  class="transaction-table__drag-handle" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor"
+                >
+                  <path d="M8 6h8M8 12h8M8 18h8"/>
+                </svg>
                 {{ col.label }}
-                <span
-                  v-if="sortKey === col.key"
+                <span 
+                  v-if="sortKey === col.key" 
                   class="transaction-table__sort-icon"
                   :class="{ 'transaction-table__sort-icon--desc': sortDir === 'desc' }"
                 >
@@ -524,6 +645,8 @@ function getCellClass(col: ColumnDef, row: Row) {
     color: #374151;
     border-right: 1px solid #e5e7eb;
     white-space: nowrap;
+    position: relative;
+    transition: all 0.2s ease;
 
     &:last-child {
       border-right: none;
@@ -542,12 +665,44 @@ function getCellClass(col: ColumnDef, row: Row) {
         background: #f1f5f9;
       }
     }
+
+    &--dragging {
+      opacity: 0.5;
+      background: #e0f2fe;
+      transform: rotate(2deg);
+      z-index: 1000;
+    }
+
+    &--drag-over {
+      background: #dbeafe;
+      border-left: 3px solid #3b82f6;
+      border-right: 3px solid #3b82f6;
+    }
+
+    &:hover {
+      .transaction-table__drag-handle {
+        opacity: 1;
+      }
+    }
   }
 
   &__th-content {
     display: flex;
     align-items: center;
     gap: 4px;
+  }
+
+  &__drag-handle {
+    width: 12px;
+    height: 12px;
+    opacity: 0.3;
+    cursor: grab;
+    transition: opacity 0.2s;
+    margin-right: 4px;
+
+    &:active {
+      cursor: grabbing;
+    }
   }
 
   &__sort-icon {
