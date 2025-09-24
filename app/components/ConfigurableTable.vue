@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import type { ColumnDef, Row } from '~/types/configurable-table';
 
 const props = defineProps<{
@@ -30,97 +30,59 @@ const searchQuery = ref(props.searchQuery || '');
 const STORAGE_KEY = `table.columns:${props.tableId}`;
 const STORAGE_ORDER_KEY = `table.columns.order:${props.tableId}`;
 
-// Initialize column state and order synchronously to prevent flashing
-function initializeColumnState() {
-  console.log('🔧 Initializing column state for table:', props.tableId);
-  
-  // Default values for SSR
-  const defaultColumnState = Object.fromEntries(props.columns.map(c => [c.key, c.visible ?? true]));
-  const defaultColumnOrder = props.columns.map(c => c.key);
-  
-  // Check if we're in browser environment
-  if (typeof window === 'undefined') {
-    console.log('🌐 SSR mode - using default values');
-    return { columnStateValue: defaultColumnState, columnOrderValue: defaultColumnOrder };
-  }
-  
-  console.log('🌐 Browser mode - loading from localStorage');
-  console.log(
-    '🔍 All localStorage keys:',
-    Object.keys(localStorage).filter(k => k.includes('table.columns'))
-  );
+// Initialize with default values to prevent SSR/client mismatch
+const defaultColumnState = Object.fromEntries(props.columns.map(c => [c.key, c.visible ?? true]));
+const defaultColumnOrder = props.columns.map(c => c.key);
 
-  let columnStateValue: Record<string, boolean> = {};
-  let columnOrderValue: string[] = [];
+const columnState = ref<Record<string, boolean>>(defaultColumnState);
+const columnOrder = ref<string[]>(defaultColumnOrder);
 
+// Load saved data after component is mounted
+onMounted(() => {
+  console.log('🚀 Component mounted - loading from localStorage');
+  
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     console.log('📦 Column state from localStorage:', raw);
-    if (raw) columnStateValue = JSON.parse(raw);
-    else {
-      columnStateValue = defaultColumnState;
-      console.log('🆕 Default column state created:', columnStateValue);
+    if (raw) {
+      const savedState = JSON.parse(raw);
+      console.log('✅ Loading saved column state:', savedState);
+      columnState.value = savedState;
     }
   } catch (error) {
-    console.error('❌ Error parsing column state:', error);
-    columnStateValue = defaultColumnState;
+    console.error('❌ Error loading column state:', error);
   }
 
   try {
     const orderRaw = localStorage.getItem(STORAGE_ORDER_KEY);
     console.log('📦 Column order from localStorage:', orderRaw);
     if (orderRaw) {
-      columnOrderValue = JSON.parse(orderRaw);
-      console.log('✅ Parsed column order:', columnOrderValue);
+      const savedOrder = JSON.parse(orderRaw);
+      console.log('✅ Loading saved column order:', savedOrder);
       // Ensure all columns are in the order array
       const allKeys = props.columns.map(c => c.key);
-      const missingKeys = allKeys.filter(key => !columnOrderValue.includes(key));
+      const missingKeys = allKeys.filter(key => !savedOrder.includes(key));
       if (missingKeys.length > 0) {
         console.log('🔧 Adding missing keys to order:', missingKeys);
-        columnOrderValue = [...columnOrderValue, ...missingKeys];
+        savedOrder.push(...missingKeys);
       }
-    } else {
-      columnOrderValue = defaultColumnOrder;
-      console.log('🆕 Default column order created:', columnOrderValue);
+      columnOrder.value = savedOrder;
     }
   } catch (error) {
-    console.error('❌ Error parsing column order:', error);
-    columnOrderValue = defaultColumnOrder;
+    console.error('❌ Error loading column order:', error);
   }
-
-  console.log('🎯 Final column order:', columnOrderValue);
-  console.log('🎯 Final column state:', columnStateValue);
-
-  return { columnStateValue, columnOrderValue };
-}
-
-const { columnStateValue, columnOrderValue } = initializeColumnState();
-const columnState = ref<Record<string, boolean>>(columnStateValue);
-const columnOrder = ref<string[]>(columnOrderValue);
-
-console.log('🚀 Component initialized with:', {
-  tableId: props.tableId,
-  initialColumnOrder: columnOrderValue,
-  initialColumnState: columnStateValue,
-  propsColumns: props.columns.map(c => c.key),
+  
+  console.log('🎯 Final loaded state:', {
+    columnOrder: columnOrder.value,
+    columnState: columnState.value
+  });
 });
-
-// Add immediate watcher to see if column state changes
-watch(
-  columnState,
-  (newVal, oldVal) => {
-    console.log('🔄 Column state changed:', { from: oldVal, to: newVal });
-  },
-  { deep: true, immediate: true }
-);
 
 watch(
   columnState,
   v => {
     console.log('💾 Saving column state to localStorage:', v);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
-    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
   },
   { deep: true }
 );
@@ -129,9 +91,7 @@ watch(
   columnOrder,
   v => {
     console.log('💾 Saving column order to localStorage:', v);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(v));
-    }
+    localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(v));
   },
   { deep: true }
 );
