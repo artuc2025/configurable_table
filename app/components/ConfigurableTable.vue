@@ -33,7 +33,8 @@ const STORAGE_ORDER_KEY = `table.columns.order:${props.tableId}`;
 // Initialize column state and order synchronously to prevent flashing
 function initializeColumnState() {
   console.log('🔧 Initializing column state for table:', props.tableId);
-  
+  console.log('🔍 All localStorage keys:', Object.keys(localStorage).filter(k => k.includes('table.columns')));
+
   let columnStateValue: Record<string, boolean> = {};
   let columnOrderValue: string[] = [];
 
@@ -74,7 +75,7 @@ function initializeColumnState() {
 
   console.log('🎯 Final column order:', columnOrderValue);
   console.log('🎯 Final column state:', columnStateValue);
-  
+
   return { columnStateValue, columnOrderValue };
 }
 
@@ -86,12 +87,22 @@ console.log('🚀 Component initialized with:', {
   tableId: props.tableId,
   initialColumnOrder: columnOrderValue,
   initialColumnState: columnStateValue,
-  propsColumns: props.columns.map(c => c.key)
+  propsColumns: props.columns.map(c => c.key),
 });
+
+// Add immediate watcher to see if column state changes
+watch(
+  columnState,
+  (newVal, oldVal) => {
+    console.log('🔄 Column state changed:', { from: oldVal, to: newVal });
+  },
+  { deep: true, immediate: true }
+);
 
 watch(
   columnState,
   v => {
+    console.log('💾 Saving column state to localStorage:', v);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
   },
   { deep: true }
@@ -100,6 +111,7 @@ watch(
 watch(
   columnOrder,
   v => {
+    console.log('💾 Saving column order to localStorage:', v);
     localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(v));
   },
   { deep: true }
@@ -113,19 +125,28 @@ const allColumns = computed<ColumnDef[]>(() => {
     const indexB = columnOrder.value.indexOf(b.key);
     return indexA - indexB;
   });
-  console.log('📋 Sorted columns:', sorted.map(c => c.key));
+  console.log(
+    '📋 Sorted columns:',
+    sorted.map(c => c.key)
+  );
   return sorted;
 });
 
 const visibleColumns = computed<ColumnDef[]>(() => {
   const visible = allColumns.value.filter(c => columnState.value[c.key] !== false);
-  console.log('👁️ Visible columns:', visible.map(c => c.key));
+  console.log(
+    '👁️ Visible columns:',
+    visible.map(c => c.key)
+  );
   return visible;
 });
 
 const hiddenColumns = computed<ColumnDef[]>(() => {
   const hidden = allColumns.value.filter(c => columnState.value[c.key] === false);
-  console.log('🙈 Hidden columns:', hidden.map(c => c.key));
+  console.log(
+    '🙈 Hidden columns:',
+    hidden.map(c => c.key)
+  );
   return hidden;
 });
 
@@ -394,14 +415,14 @@ function getCellClass(col: ColumnDef, row: Row) {
           <div v-if="isConfigOpen" class="transaction-table__config-dropdown" @click.stop>
             <div class="transaction-table__config-title">Սյունակներ</div>
             <label v-for="c in allColumns" :key="c.key" class="transaction-table__config-item">
-              <input
+            <input
                 class="transaction-table__config-checkbox"
-                type="checkbox"
-                :checked="columnState[c.key] !== false"
-                @change="onColumnChange(c.key, ($event.target as HTMLInputElement).checked)"
-              />
+              type="checkbox"
+              :checked="columnState[c.key] !== false"
+              @change="onColumnChange(c.key, ($event.target as HTMLInputElement).checked)"
+            />
               <span class="transaction-table__config-label">{{ c.label }}</span>
-            </label>
+          </label>
             <div class="transaction-table__config-note">* Թաքնված սյունակները կտեսնեք տողի մանրամասներում</div>
           </div>
         </div>
@@ -413,40 +434,40 @@ function getCellClass(col: ColumnDef, row: Row) {
       <table class="transaction-table__table">
         <thead class="transaction-table__thead">
           <tr class="transaction-table__header-row">
-            <!-- Select-All -->
+          <!-- Select-All -->
             <th class="transaction-table__th transaction-table__th--checkbox">
-              <input
-                type="checkbox"
+            <input
+              type="checkbox"
                 class="transaction-table__checkbox"
-                :checked="allVisibleSelected"
-                :indeterminate.prop="someVisibleSelected"
-                @change="toggleSelectAllVisible(($event.target as HTMLInputElement).checked)"
-              />
-            </th>
+              :checked="allVisibleSelected"
+              :indeterminate.prop="someVisibleSelected"
+              @change="toggleSelectAllVisible(($event.target as HTMLInputElement).checked)"
+            />
+          </th>
 
-            <th
-              v-for="col in visibleColumns"
-              :key="col.key"
+          <th
+            v-for="col in visibleColumns"
+            :key="col.key"
               class="transaction-table__th"
               :class="{
                 'transaction-table__th--sortable': col.sortable,
                 'transaction-table__th--dragging': draggedColumn === col.key,
                 'transaction-table__th--drag-over': dragOverColumn === col.key,
               }"
-              :style="{ width: col.width || 'auto', textAlign: col.align || 'left' }"
+            :style="{ width: col.width || 'auto', textAlign: col.align || 'left' }"
               draggable="true"
-              @click="sortBy(col)"
+            @click="sortBy(col)"
               @dragstart="handleDragStart($event, col.key)"
               @dragover="handleDragOver($event, col.key)"
               @dragleave="handleDragLeave($event)"
               @drop="handleDrop($event, col.key)"
               @dragend="handleDragEnd"
-            >
+          >
               <span class="transaction-table__th-content">
                 <svg class="transaction-table__drag-handle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path d="M8 6h8M8 12h8M8 18h8" />
                 </svg>
-                {{ col.label }}
+              {{ col.label }}
                 <span
                   v-if="sortKey === col.key"
                   class="transaction-table__sort-icon"
@@ -454,42 +475,42 @@ function getCellClass(col: ColumnDef, row: Row) {
                 >
                   ▲
                 </span>
-              </span>
-            </th>
-          </tr>
-        </thead>
+            </span>
+          </th>
+        </tr>
+      </thead>
 
         <tbody class="transaction-table__tbody">
-          <template v-for="(row, idx) in displayRows" :key="keyOf(row, idx)">
+        <template v-for="(row, idx) in displayRows" :key="keyOf(row, idx)">
             <tr
               class="transaction-table__row"
               :class="{ 'transaction-table__row--expanded': isExpanded(keyOf(row, idx)) }"
               @click="handleRowClick(row, keyOf(row, idx), $event)"
             >
-              <!-- Row checkbox -->
+            <!-- Row checkbox -->
               <td class="transaction-table__td transaction-table__td--checkbox">
-                <input
-                  type="checkbox"
+              <input
+                type="checkbox"
                   class="transaction-table__checkbox"
-                  :checked="selectedKeys.has(keyOf(row, idx))"
-                  @change="toggleSelectRow(keyOf(row, idx), ($event.target as HTMLInputElement).checked)"
-                />
-              </td>
+                :checked="selectedKeys.has(keyOf(row, idx))"
+                @change="toggleSelectRow(keyOf(row, idx), ($event.target as HTMLInputElement).checked)"
+              />
+            </td>
 
-              <td
-                v-for="col in visibleColumns"
-                :key="col.key"
+            <td
+              v-for="col in visibleColumns"
+              :key="col.key"
                 class="transaction-table__td"
                 :class="getCellClass(col, row)"
-                :style="{ textAlign: col.align || 'left' }"
-              >
+              :style="{ textAlign: col.align || 'left' }"
+            >
                 <span class="transaction-table__cell-content">
-                  {{ cellValue(col, row) }}
+              {{ cellValue(col, row) }}
                 </span>
-              </td>
-            </tr>
+            </td>
+          </tr>
 
-            <!-- Details: show hidden columns -->
+          <!-- Details: show hidden columns -->
             <tr v-if="isExpanded(keyOf(row, idx))" class="transaction-table__details-row">
               <td class="transaction-table__td"></td>
               <td :colspan="visibleColumns.length" class="transaction-table__td transaction-table__td--details">
@@ -497,15 +518,15 @@ function getCellClass(col: ColumnDef, row: Row) {
                   <div v-for="col in hiddenColumns" :key="col.key" class="transaction-table__detail-item">
                     <div class="transaction-table__detail-label">{{ col.label }}</div>
                     <div class="transaction-table__detail-value">
-                      {{ cellValue(col, row) }}
+                    {{ cellValue(col, row) }}
                     </div>
-                  </div>
                 </div>
-              </td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
+              </div>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
     </div>
   </div>
 </template>
@@ -662,7 +683,7 @@ function getCellClass(col: ColumnDef, row: Row) {
 
   &__table {
     width: 100%;
-    border-collapse: collapse;
+  border-collapse: collapse;
     font-size: 14px;
   }
 
