@@ -77,7 +77,7 @@ onMounted(() => {
     columnOrder: columnOrder.value,
     columnState: columnState.value,
   });
-  
+
   // Mark table as ready to show
   isTableReady.value = true;
   console.log('✅ Table is now ready to display');
@@ -94,9 +94,14 @@ watch(
 
 watch(
   columnOrder,
-  v => {
-    console.log('💾 Saving column order to localStorage:', v);
-    localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(v));
+  (newOrder, oldOrder) => {
+    console.log('🔄 COLUMN ORDER CHANGED:', {
+      oldOrder: oldOrder || 'undefined',
+      newOrder: newOrder,
+      timestamp: new Date().toISOString(),
+    });
+    console.log('💾 Saving column order to localStorage:', newOrder);
+    localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(newOrder));
   },
   { deep: true }
 );
@@ -275,6 +280,11 @@ const draggedColumn = ref<string | null>(null);
 const dragOverColumn = ref<string | null>(null);
 
 function handleDragStart(event: DragEvent, columnKey: string) {
+  console.log('🚀 DRAG START:', {
+    columnKey,
+    currentOrder: [...columnOrder.value],
+    draggedIndex: columnOrder.value.indexOf(columnKey),
+  });
   draggedColumn.value = columnKey;
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
@@ -287,6 +297,11 @@ function handleDragOver(event: DragEvent, columnKey: string) {
   if (event.dataTransfer) {
     event.dataTransfer.dropEffect = 'move';
   }
+  console.log('🎯 DRAG OVER:', {
+    draggedColumn: draggedColumn.value,
+    targetColumn: columnKey,
+    dragOverColumn: dragOverColumn.value,
+  });
   dragOverColumn.value = columnKey;
 }
 
@@ -296,17 +311,34 @@ function handleDragLeave(event: DragEvent) {
   const x = event.clientX;
   const y = event.clientY;
 
+  console.log('🚪 DRAG LEAVE:', {
+    clientX: x,
+    clientY: y,
+    rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+    isLeavingArea: x < rect.left || x > rect.right || y < rect.top || y > rect.bottom,
+    currentDragOver: dragOverColumn.value,
+  });
+
   if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+    console.log('🚪 CLEARING dragOverColumn');
     dragOverColumn.value = null;
   }
 }
 
 function handleDrop(event: DragEvent, targetColumnKey: string) {
   event.preventDefault();
-  console.log('🎯 Drop event:', { dragged: draggedColumn.value, target: targetColumnKey });
+  console.log('🎯 DROP EVENT START:', {
+    dragged: draggedColumn.value,
+    target: targetColumnKey,
+    timestamp: new Date().toISOString(),
+  });
 
   if (!draggedColumn.value || draggedColumn.value === targetColumnKey) {
-    console.log('❌ Invalid drop - same column or no dragged column');
+    console.log('❌ INVALID DROP - same column or no dragged column:', {
+      draggedColumn: draggedColumn.value,
+      targetColumn: targetColumnKey,
+      isSameColumn: draggedColumn.value === targetColumnKey,
+    });
     draggedColumn.value = null;
     dragOverColumn.value = null;
     return;
@@ -316,26 +348,77 @@ function handleDrop(event: DragEvent, targetColumnKey: string) {
   const draggedIndex = currentOrder.indexOf(draggedColumn.value);
   const targetIndex = currentOrder.indexOf(targetColumnKey);
 
-  console.log('📊 Current order:', currentOrder);
-  console.log('📍 Indices:', { draggedIndex, targetIndex });
+  console.log('📊 BEFORE REORDER:', {
+    currentOrder: [...currentOrder],
+    draggedColumn: draggedColumn.value,
+    targetColumn: targetColumnKey,
+    draggedIndex,
+    targetIndex,
+    dragDirection: draggedIndex < targetIndex ? 'LEFT_TO_RIGHT' : 'RIGHT_TO_LEFT',
+  });
 
   if (draggedIndex !== -1 && targetIndex !== -1) {
     // Remove dragged column from its current position
-    currentOrder.splice(draggedIndex, 1);
+    const removedItem = currentOrder.splice(draggedIndex, 1)[0];
+    console.log('✂️ REMOVED ITEM:', { removedItem, newOrderAfterRemoval: [...currentOrder] });
 
-    // Insert it at the new position
-    const newTargetIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    // Calculate insertion index
+    // We want to insert the dragged item AFTER the target position when dragging left to right
+    // and BEFORE the target position when dragging right to left
+    let newTargetIndex;
+    if (draggedIndex < targetIndex) {
+      // Dragging left to right: insert AFTER the target
+      // Since we removed the dragged item, target index shifts down by 1
+      // So we insert at the original target index (which is now targetIndex - 1 + 1 = targetIndex)
+      newTargetIndex = targetIndex;
+    } else {
+      // Dragging right to left: insert BEFORE the target
+      // Target index stays the same
+      newTargetIndex = targetIndex;
+    }
+
+    console.log('🎯 INSERTION CALCULATION:', {
+      originalTargetIndex: targetIndex,
+      calculatedNewTargetIndex: newTargetIndex,
+      reason:
+        draggedIndex < targetIndex
+          ? 'LEFT_TO_RIGHT: insert AFTER target (at targetIndex)'
+          : 'RIGHT_TO_LEFT: insert BEFORE target (at targetIndex)',
+      explanation:
+        draggedIndex < targetIndex
+          ? 'When dragging left to right, we want the dragged item to appear AFTER the target'
+          : 'When dragging right to left, we want the dragged item to appear BEFORE the target',
+    });
+
     currentOrder.splice(newTargetIndex, 0, draggedColumn.value);
 
-    console.log('🔄 New order:', currentOrder);
+    console.log('🔄 AFTER REORDER:', {
+      finalOrder: [...currentOrder],
+      insertedAt: newTargetIndex,
+      success: true,
+    });
+
     columnOrder.value = currentOrder;
+  } else {
+    console.log('❌ INVALID INDICES:', {
+      draggedIndex,
+      targetIndex,
+      draggedColumn: draggedColumn.value,
+      targetColumn: targetColumnKey,
+    });
   }
 
+  console.log('🏁 DROP EVENT END');
   draggedColumn.value = null;
   dragOverColumn.value = null;
 }
 
 function handleDragEnd() {
+  console.log('🏁 DRAG END:', {
+    draggedColumn: draggedColumn.value,
+    dragOverColumn: dragOverColumn.value,
+    timestamp: new Date().toISOString(),
+  });
   draggedColumn.value = null;
   dragOverColumn.value = null;
 }
@@ -690,8 +773,12 @@ function getCellClass(col: ColumnDef, row: Row) {
   }
 
   @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
   }
 
   &__table {
