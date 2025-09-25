@@ -20,6 +20,8 @@ const props = defineProps<{
   selectedKeys?: Array<string | number>;
   // Опционально: двусторонняя привязка выбранных полных строк
   selectedRows?: Row[];
+  // Карта валют для блока "Ընդամենը" (Total). Ключ — код валюты, значение — сумма.
+  currencyTotals?: Record<string, number>;
 }>();
 
 const emit = defineEmits<{
@@ -304,6 +306,36 @@ const isFooterPanelOpen = ref(false);
 const rowsPerPage = ref<number>(25);
 const selectedCount = computed(() => selectedVisibleCount.value);
 const totalCount = computed(() => displayRows.value.length);
+
+// ---------- Currency totals (blocks)
+// Список валют задаётся только из props.currencyTotals ключами
+const currencyList = computed<string[]>(() => Object.keys(props.currencyTotals ?? {}));
+
+function sumByCurrency(rows: Row[]): Record<string, number> {
+  const acc: Record<string, number> = {};
+  for (const r of rows) {
+    // ожидаем, что каждая строка может иметь поля amount и currency
+    const amount = Number((r as any).amount);
+    const currency = String((r as any).currency ?? '');
+    if (!currency || Number.isNaN(amount)) continue;
+    acc[currency] = (acc[currency] ?? 0) + amount;
+  }
+  return acc;
+}
+
+const pageTotals = computed<Record<string, number | undefined>>(() => {
+  const sums = sumByCurrency(displayRows.value);
+  const out: Record<string, number | undefined> = {};
+  for (const cur of currencyList.value) out[cur] = sums[cur];
+  return out;
+});
+
+const selectedTotals = computed<Record<string, number | undefined>>(() => {
+  const sums = sumByCurrency(selectedRowsComputed.value);
+  const out: Record<string, number | undefined> = {};
+  for (const cur of currencyList.value) out[cur] = sums[cur];
+  return out;
+});
 
 // ---------- Drag and Drop functionality
 const draggedColumn = ref<string | null>(null);
@@ -594,7 +626,35 @@ function getCellClass(col: ColumnDef, row: Row) {
       class="transaction-table__footer-panel"
       :class="{ 'transaction-table__footer-panel--open': isFooterPanelOpen }"
     >
-      <slot name="footer-panel">No data available</slot>
+      <div class="transaction-table__totals" v-if="currencyList.length">
+        <!-- Block 1: Total -->
+        <div class="transaction-table__totals-block">
+          <div class="transaction-table__totals-title">Ընդամենը</div>
+          <div v-for="cur in currencyList" :key="`total-${cur}`" class="transaction-table__totals-row">
+            <span class="transaction-table__totals-key">{{ cur }}</span>
+            <span class="transaction-table__totals-value">{{ (props.currencyTotals || {})[cur] }}</span>
+          </div>
+        </div>
+
+        <!-- Block 2: Total on page -->
+        <div class="transaction-table__totals-block">
+          <div class="transaction-table__totals-title">Ընդամենը էջում</div>
+          <div v-for="cur in currencyList" :key="`page-${cur}`" class="transaction-table__totals-row">
+            <span class="transaction-table__totals-key">{{ cur }}</span>
+            <span class="transaction-table__totals-value">{{ pageTotals[cur] ?? '-' }}</span>
+          </div>
+        </div>
+
+        <!-- Block 3: Total selected -->
+        <div class="transaction-table__totals-block">
+          <div class="transaction-table__totals-title">Ընդամենը ընտրված</div>
+          <div v-for="cur in currencyList" :key="`selected-${cur}`" class="transaction-table__totals-row">
+            <span class="transaction-table__totals-key">{{ cur }}</span>
+            <span class="transaction-table__totals-value">{{ selectedTotals[cur] ?? '-' }}</span>
+          </div>
+        </div>
+      </div>
+      <slot name="footer-panel"></slot>
     </div>
   </div>
 </template>
@@ -1124,6 +1184,46 @@ function getCellClass(col: ColumnDef, row: Row) {
     padding-top: 12px;
     padding-bottom: 12px;
   }
+
+  /* Totals */
+  &__totals {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  &__totals-block {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  &__totals-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 8px;
+  }
+
+  &__totals-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+  }
+
+  &__totals-key {
+    font-size: 13px;
+    color: #6b7280;
+  }
+
+  &__totals-value {
+    font-size: 13px;
+    color: #111827;
+    font-weight: 500;
+  }
 }
 
 // Responsive adjustments
@@ -1144,6 +1244,9 @@ function getCellClass(col: ColumnDef, row: Row) {
     }
 
     &__details {
+      grid-template-columns: 1fr;
+    }
+    &__totals {
       grid-template-columns: 1fr;
     }
   }

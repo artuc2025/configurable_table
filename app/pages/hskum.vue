@@ -10,7 +10,12 @@ const columns: ColumnDef[] = [
     sortable: true,
     align: 'right',
     width: '150px',
-    // formatter: (v: number) => Intl.NumberFormat('hy-AM').format(v),
+    formatter: (_v: number, row: any) => {
+      const cur = row.currency || '';
+      const val = Number(row.amount);
+      if (Number.isNaN(val)) return '-';
+      return `${Intl.NumberFormat('hy-AM', { maximumFractionDigits: 2 }).format(val)} ${cur}`;
+    },
   },
   { key: 'payerAccount', label: 'Վճարողի հաշիվ', width: '180px' },
   { key: 'accountName', label: 'Հաշվի անվանում', width: '200px' },
@@ -35,7 +40,8 @@ const rows = [
     id: 'T-001',
     date: '03.03.25',
     number: '123456789',
-    amount: 8120000,
+    amount: 60312,
+    currency: 'EUR',
     payerAccount: '1234567890123456',
     accountName: 'Հայաստանի Էլեկտրական...',
     recipient: 'Anna Kirakosyan',
@@ -56,7 +62,8 @@ const rows = [
     id: 'T-002',
     date: '03.03.25',
     number: '987654321',
-    amount: 4325,
+    amount: 1960672353.61,
+    currency: 'AMD',
     payerAccount: '9876543210987654',
     accountName: 'Հայաստանի Գազ...',
     recipient: 'John Smith',
@@ -77,7 +84,8 @@ const rows = [
     id: 'T-003',
     date: '04.03.25',
     number: '456789123',
-    amount: 150000,
+    amount: 108148950.8,
+    currency: 'RUR',
     payerAccount: '4567891234567890',
     accountName: 'Հայաստանի Ջուր...',
     recipient: 'Maria Garcia',
@@ -98,7 +106,8 @@ const rows = [
     id: 'T-004',
     date: '05.03.25',
     number: '789123456',
-    amount: 25000,
+    amount: 1816444.9,
+    currency: 'CNY',
     payerAccount: '7891234567890123',
     accountName: 'Հայաստանի Հեռահաղորդակցություն...',
     recipient: 'David Brown',
@@ -119,7 +128,8 @@ const rows = [
     id: 'T-005',
     date: '06.03.25',
     number: '321654987',
-    amount: 5000,
+    amount: 44,
+    currency: 'USD',
     payerAccount: '3216549876543210',
     accountName: 'Հայաստանի Փոստ...',
     recipient: 'Sarah Wilson',
@@ -136,6 +146,73 @@ const rows = [
     purpose: 'Փոխանցում',
     executionDate: '22.03.25',
   },
+  // extra rows to demonstrate page/selected totals
+  {
+    id: 'T-006',
+    date: '06.03.25',
+    number: '111222333',
+    amount: 100,
+    currency: 'USD',
+    payerAccount: '1111222233334444',
+    accountName: 'Թեստային հաշիվ...',
+    recipient: 'Test User 1',
+    recipientAccount: '111122223333...',
+    status: 'Հաստատված',
+    userName: 'ENA2001',
+    equivalent: 1000.0,
+    exchangeRate: 10.0,
+    commission: 10.0,
+    documentNumber: '111122223333444',
+    recipientBank: 'Ամերիաբանկ',
+    file: '11112222333344455',
+    urgent: 'Ոչ',
+    purpose: 'Թեստային վճարում',
+    executionDate: '23.03.25',
+  },
+  {
+    id: 'T-007',
+    date: '07.03.25',
+    number: '222333444',
+    amount: 500,
+    currency: 'EUR',
+    payerAccount: '2222333344445555',
+    accountName: 'Թեստային հաշիվ 2...',
+    recipient: 'Test User 2',
+    recipientAccount: '222233334444...',
+    status: 'Չհաստատված',
+    userName: 'ENA2002',
+    equivalent: 5000.0,
+    exchangeRate: 10.0,
+    commission: 5.0,
+    documentNumber: '222233334444555',
+    recipientBank: 'Արարատբանկ',
+    file: '22223333444455566',
+    urgent: 'Այո ✔',
+    purpose: 'Թեստային փոխանցում',
+    executionDate: '24.03.25',
+  },
+  {
+    id: 'T-008',
+    date: '08.03.25',
+    number: '333444555',
+    amount: 100000,
+    currency: 'AMD',
+    payerAccount: '3333444455556666',
+    accountName: 'Թեստային հաշիվ 3...',
+    recipient: 'Test User 3',
+    recipientAccount: '333344445555...',
+    status: 'Միջանկյալ',
+    userName: 'ENA2003',
+    equivalent: 1000000.0,
+    exchangeRate: 10.0,
+    commission: 100.0,
+    documentNumber: '333344445555666',
+    recipientBank: 'ՎՏԲ Բանկ',
+    file: '33334444555566677',
+    urgent: 'Ոչ',
+    purpose: 'Թեստային ծառայություն',
+    executionDate: '25.03.25',
+  },
 ];
 
 function handleRowClick({ row, key }: { row: any; key: string | number }) {
@@ -145,6 +222,14 @@ function handleRowClick({ row, key }: { row: any; key: string | number }) {
 const search = ref('');
 const selected = ref<Array<string | number>>([]);
 const selectedRows = ref<any[]>([]);
+
+const currencyTotals = {
+  EUR: 60312,
+  AMD: 1960672353.61,
+  RUR: 108148950.8,
+  CNY: 1816444.9,
+  USD: 44,
+};
 </script>
 
 <template>
@@ -157,6 +242,7 @@ const selectedRows = ref<any[]>([]);
       table-id="transactions-table"
       :columns="columns"
       :rows="rows"
+      :currency-totals="currencyTotals"
       :initial-sort="{ key: 'date', dir: 'desc' }"
       row-key="id"
       :search-keys="[
