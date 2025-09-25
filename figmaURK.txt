@@ -1,1 +1,50 @@
 https://www.figma.com/design/bSey8UIhnilaG8KKGLyBLu/Internet-Banking-final-Eduard?node-id=5154-9900&t=ewWA4I84fjCwrRNU-4
+
+
+POST /api/control/lookup
+ 
+request body - {
+  "controlState": 7,
+  "fromDate": "2025-01-01",
+  "toDate": "2026-01-31",
+  "documentId": 0,
+  "pageSize": 50,
+  "pageNumber": 1
+}
+ 
+response - {
+    "transactions": [
+        {
+            "transactionId": 52007104,
+            "externalReference": 4012,
+            "valueDate": "2025-09-10",
+            "amount": 101.00,
+            "commissionAmount": 0.00,
+            "currency": "AMD",
+            "debitAccount": "2470100870440010",
+            "creditAccount": "2470071111790000",
+            "accountName": "ՌՈՒՍԱԼ ԱՐՄԵՆԱԼ  ՓԲԸ",
+            "transactionDetails": "Salary",
+            "state": "-2",
+            "documentId": 7100,
+            "referenceNumber": 0,
+            "timestampLogin": null,
+            "timestampTime": "2025-09-10T16:41:00",
+            "receivingBank": "AM24700 Արդշինբանկ  ՓԲԸ",
+            "recipientName": "ԱՂԱԲԱԲՅԱՆ ԱՐՍԵՆ ԱՂԲԱԼԻ",
+            "isUnusual": false,
+            "equivalentInAmd": 101.00,
+            "rate": 1,
+            "importedFile": "1222_salary.xml",
+            "isExpress": false,
+            "actionState": "5"
+        },],
+    "totalAmountByCurrency": {
+        "EUR": 60312,
+        "AMD": 1960672353.61,
+        "RUR": 108148950.8,
+        "CNY": 1816444.9,
+        "USD": 44
+    },
+    "totalDocumentCount": 112
+}
