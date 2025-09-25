@@ -10,7 +10,7 @@ const columns: ColumnDef[] = [
     sortable: true,
     align: 'right',
     width: '150px',
-    formatter: (v: number) => Intl.NumberFormat('hy-AM').format(v),
+    // formatter: (v: number) => Intl.NumberFormat('hy-AM').format(v),
   },
   { key: 'payerAccount', label: 'Վճարողի հաշիվ', width: '180px' },
   { key: 'accountName', label: 'Հաշվի անվանում', width: '200px' },

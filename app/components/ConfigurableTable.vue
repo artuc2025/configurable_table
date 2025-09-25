@@ -38,7 +38,7 @@ watch(
   v => {
     if (typeof v === 'string' && v !== searchQuery.value) searchQuery.value = v;
     if (v == null && searchQuery.value !== '') searchQuery.value = '';
-  },
+  }
 );
 // Emit up for v-model
 watch(searchQuery, v => emit('update:searchQuery', v));
@@ -92,7 +92,7 @@ watch(
   v => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
   },
-  { deep: true },
+  { deep: true }
 );
 
 watch(
@@ -100,7 +100,7 @@ watch(
   newOrder => {
     localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(newOrder));
   },
-  { deep: true },
+  { deep: true }
 );
 
 const allColumns = computed<ColumnDef[]>(() => {
@@ -137,7 +137,7 @@ function cellValue(col: ColumnDef, row: Row) {
 // ---------- SEARCH / FILTER
 const normalizedQuery = computed(() => searchQuery.value.toString());
 const filterKeys = computed(() =>
-  props.searchKeys && props.searchKeys.length ? props.searchKeys : allColumns.value.map(c => c.key),
+  props.searchKeys && props.searchKeys.length ? props.searchKeys : allColumns.value.map(c => c.key)
 );
 
 const filteredRows = computed<Row[]>(() => {
@@ -231,7 +231,7 @@ watch(
     } else if (v == null) {
       selectedKeySet.value = new Set();
     }
-  },
+  }
 );
 // Map keys to rows for emitting full selected row objects
 const keyToRowMap = computed<Map<string | number, Row>>(() => {
@@ -258,7 +258,7 @@ watch(
     emit('update:selectedKeys', arr);
     emit('update:selectedRows', selectedRowsComputed.value);
   },
-  { deep: true },
+  { deep: true }
 );
 
 // ключи только видимых строк (после фильтра и сортировки)
@@ -267,7 +267,7 @@ const visibleKeys = computed(() => displayRows.value.map((r, i) => keyOf(r, i)))
 const selectedVisibleCount = computed(() => visibleKeys.value.filter(k => selectedKeySet.value.has(k)).length);
 
 const allVisibleSelected = computed(
-  () => visibleKeys.value.length > 0 && selectedVisibleCount.value === visibleKeys.value.length,
+  () => visibleKeys.value.length > 0 && selectedVisibleCount.value === visibleKeys.value.length
 );
 const someVisibleSelected = computed(() => selectedVisibleCount.value > 0 && !allVisibleSelected.value);
 
@@ -298,6 +298,12 @@ function isRowSelected(key: string | number): boolean {
   const set = selectedKeySet.value;
   return set instanceof Set ? set.has(key) : false;
 }
+
+// ---------- Footer state
+const isFooterPanelOpen = ref(false);
+const rowsPerPage = ref<number>(25);
+const selectedCount = computed(() => selectedVisibleCount.value);
+const totalCount = computed(() => displayRows.value.length);
 
 // ---------- Drag and Drop functionality
 const draggedColumn = ref<string | null>(null);
@@ -354,11 +360,14 @@ function handleDrop(event: DragEvent, targetColumnKey: string) {
     const adjustedTargetIndex = targetIndex - (draggedIndex < targetIndex ? 1 : 0);
     const insertIndex = draggedIndex < targetIndex ? adjustedTargetIndex + 1 : adjustedTargetIndex;
 
-    currentOrder.splice(insertIndex, 0, moved);
+    // Ensure 'moved' is a string before inserting
+    if (typeof moved === 'string') {
+      currentOrder.splice(insertIndex, 0, moved);
+    }
 
     // Normalize against current columns to avoid missing/duplicate keys
     const allKeys = props.columns.map(c => c.key);
-    const normalizedOrder = [...allKeys].sort((a, b) => currentOrder.indexOf(a) - currentOrder.indexOf(b));
+    const normalizedOrder = [...allKeys].sort((a, b) => currentOrder.indexOf(a ?? '') - currentOrder.indexOf(b ?? ''));
     columnOrder.value = normalizedOrder;
   }
 
@@ -546,6 +555,46 @@ function getCellClass(col: ColumnDef, row: Row) {
           </template>
         </tbody>
       </table>
+    </div>
+    <!-- Footer -->
+    <div class="transaction-table__footer">
+      <div class="transaction-table__footer-left">
+        <button
+          class="transaction-table__footer-toggle"
+          type="button"
+          :aria-expanded="isFooterPanelOpen ? 'true' : 'false'"
+          @click="isFooterPanelOpen = !isFooterPanelOpen"
+        >
+          <svg class="transaction-table__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+          {{ isFooterPanelOpen ? 'Hide panel' : 'Show panel' }}
+        </button>
+      </div>
+
+      <div class="transaction-table__footer-center">Pagination</div>
+
+      <div class="transaction-table__footer-right">
+        <div class="transaction-table__footer-right-block">Selected {{ selectedCount }} of {{ totalCount }} rows</div>
+        <div class="transaction-table__footer-divider"></div>
+        <div class="transaction-table__footer-right-block transaction-table__rows-per-page">
+          <span class="transaction-table__rows-per-page-label">Rows per page</span>
+          <select v-model.number="rowsPerPage" class="transaction-table__rows-per-page-select">
+            <option :value="10">10</option>
+            <option :value="25">25</option>
+            <option :value="50">50</option>
+            <option :value="100">100</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide-down panel below footer -->
+    <div
+      class="transaction-table__footer-panel"
+      :class="{ 'transaction-table__footer-panel--open': isFooterPanelOpen }"
+    >
+      <slot name="footer-panel">No data available</slot>
     </div>
   </div>
 </template>
@@ -976,6 +1025,104 @@ function getCellClass(col: ColumnDef, row: Row) {
     color: #374151;
     font-weight: 500;
     word-break: break-all;
+  }
+
+  /* Footer */
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: #ffffff;
+    border-top: 1px solid #e9ecef;
+  }
+
+  &__footer-left,
+  &__footer-center,
+  &__footer-right {
+    display: flex;
+    align-items: center;
+  }
+
+  &__footer-center {
+    color: #6b7280;
+    font-size: 14px;
+  }
+
+  &__footer-right {
+    display: flex;
+    align-items: center;
+  }
+
+  &__footer-right-block {
+    white-space: nowrap;
+    color: #374151;
+    font-size: 14px;
+  }
+
+  &__footer-divider {
+    width: 1px;
+    height: 20px;
+    background: #e5e7eb;
+    margin: 0 24px;
+  }
+
+  &__footer-toggle {
+    min-width: 122px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #374151;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
+    }
+  }
+
+  &__rows-per-page {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px; /* 16px between label and select */
+  }
+
+  &__rows-per-page-select {
+    padding: 6px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #ffffff;
+    font-size: 14px;
+    color: #374151;
+    outline: none;
+
+    &:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+  }
+
+  &__footer-panel {
+    max-height: 0;
+    overflow: hidden;
+    background: #fafafa;
+    border-top: 1px solid #e9ecef;
+    padding: 0 20px;
+    transition:
+      max-height 0.25s ease,
+      padding 0.25s ease;
+  }
+
+  &__footer-panel--open {
+    max-height: 400px;
+    padding-top: 12px;
+    padding-bottom: 12px;
   }
 }
 
