@@ -141,13 +141,19 @@ const rows = [
 function handleRowClick({ row, key }: { row: any; key: string | number }) {
   console.log('Row clicked:', { row, key });
 }
+
+const search = ref('');
+const selected = ref<Array<string | number>>([]);
+const selectedRows = ref<any[]>([]);
 </script>
 
 <template>
   <div class="page">
     <h1 class="page__title">Գործարքների կառավարում</h1>
-
     <ConfigurableTable
+      v-model:searchQuery="search"
+      v-model:selectedKeys="selected"
+      v-model:selectedRows="selectedRows"
       table-id="transactions-table"
       :columns="columns"
       :rows="rows"
@@ -163,7 +169,7 @@ function handleRowClick({ row, key }: { row: any; key: string | number }) {
         'recipientAccount',
         'status',
       ]"
-      @selectionChange="({ selectedKeys }) => console.log('Selected:', selectedKeys)"
+      @selectionChange="({ selectedKeys }: { selectedKeys: Array<string | number> }) => (selected = selectedKeys)"
       @rowClick="handleRowClick"
     />
   </div>
