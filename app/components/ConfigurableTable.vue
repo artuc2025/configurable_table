@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import type { ColumnDef, Row } from '~/types/configurable-table';
 
 const props = defineProps<{
@@ -16,15 +16,32 @@ const props = defineProps<{
   searchKeys?: string[]; // по каким полям искать; по умолчанию — по всем колонкам
   caseSensitive?: boolean;
   customFilter?: (_row: Row, _q: string) => boolean; // если нужно переопределить логику
+  // === Выбор строк через v-model (массив ключей) ===
+  selectedKeys?: Array<string | number>;
+  // Опционально: двусторонняя привязка выбранных полных строк
+  selectedRows?: Row[];
 }>();
 
 const emit = defineEmits<{
   (_event: 'selectionChange', _payload: { selectedKeys: Array<string | number> }): void;
   (_event: 'rowClick', _payload: { row: Row; key: string | number }): void;
+  (_event: 'update:searchQuery', _payload: string): void;
+  (_event: 'update:selectedKeys', _payload: Array<string | number>): void;
+  (_event: 'update:selectedRows', _payload: Row[]): void;
 }>();
 
 // ---------- Search query (internal state)
 const searchQuery = ref(props.searchQuery || '');
+// Sync down from prop changes
+watch(
+  () => props.searchQuery,
+  v => {
+    if (typeof v === 'string' && v !== searchQuery.value) searchQuery.value = v;
+    if (v == null && searchQuery.value !== '') searchQuery.value = '';
+  },
+);
+// Emit up for v-model
+watch(searchQuery, v => emit('update:searchQuery', v));
 
 // ---------- Column visibility and order (persist in localStorage)
 const STORAGE_KEY = `table.columns:${props.tableId}`;
@@ -75,7 +92,7 @@ watch(
   v => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
   },
-  { deep: true }
+  { deep: true },
 );
 
 watch(
@@ -83,7 +100,7 @@ watch(
   newOrder => {
     localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(newOrder));
   },
-  { deep: true }
+  { deep: true },
 );
 
 const allColumns = computed<ColumnDef[]>(() => {
@@ -120,7 +137,7 @@ function cellValue(col: ColumnDef, row: Row) {
 // ---------- SEARCH / FILTER
 const normalizedQuery = computed(() => searchQuery.value.toString());
 const filterKeys = computed(() =>
-  props.searchKeys && props.searchKeys.length ? props.searchKeys : allColumns.value.map(c => c.key)
+  props.searchKeys && props.searchKeys.length ? props.searchKeys : allColumns.value.map(c => c.key),
 );
 
 const filteredRows = computed<Row[]>(() => {
@@ -204,40 +221,82 @@ function handleRowClick(row: Row, key: string | number, event: MouseEvent) {
 }
 
 // ---------- SELECTION (чекбоксы)
-const selectedKeys = ref<Set<string | number>>(new Set());
+const selectedKeySet = ref<Set<string | number>>(new Set(props.selectedKeys ?? []));
+// Sync down from prop changes
 watch(
-  selectedKeys,
-  () => {
-    emit('selectionChange', { selectedKeys: Array.from(selectedKeys.value) });
+  () => props.selectedKeys,
+  v => {
+    if (Array.isArray(v)) {
+      selectedKeySet.value = new Set(v);
+    } else if (v == null) {
+      selectedKeySet.value = new Set();
+    }
   },
-  { deep: true }
+);
+// Map keys to rows for emitting full selected row objects
+const keyToRowMap = computed<Map<string | number, Row>>(() => {
+  const map = new Map<string | number, Row>();
+  props.rows.forEach((r, i) => {
+    map.set(keyOf(r, i), r);
+  });
+  return map;
+});
+
+const selectedRowsComputed = computed<Row[]>(() => {
+  const map = keyToRowMap.value;
+  return Array.from(selectedKeySet.value)
+    .map(k => map.get(k))
+    .filter((r): r is Row => Boolean(r));
+});
+
+// Emit up for v-model and legacy event
+watch(
+  selectedKeySet,
+  () => {
+    const arr = Array.from(selectedKeySet.value);
+    emit('selectionChange', { selectedKeys: arr });
+    emit('update:selectedKeys', arr);
+    emit('update:selectedRows', selectedRowsComputed.value);
+  },
+  { deep: true },
 );
 
 // ключи только видимых строк (после фильтра и сортировки)
 const visibleKeys = computed(() => displayRows.value.map((r, i) => keyOf(r, i)));
 
-const selectedVisibleCount = computed(() => visibleKeys.value.filter(k => selectedKeys.value.has(k)).length);
+const selectedVisibleCount = computed(() => visibleKeys.value.filter(k => selectedKeySet.value.has(k)).length);
 
 const allVisibleSelected = computed(
-  () => visibleKeys.value.length > 0 && selectedVisibleCount.value === visibleKeys.value.length
+  () => visibleKeys.value.length > 0 && selectedVisibleCount.value === visibleKeys.value.length,
 );
 const someVisibleSelected = computed(() => selectedVisibleCount.value > 0 && !allVisibleSelected.value);
 
 function toggleSelectRow(key: string | number, checked: boolean) {
-  if (checked) selectedKeys.value.add(key);
-  else selectedKeys.value.delete(key);
+  if (checked) selectedKeySet.value.add(key);
+  else selectedKeySet.value.delete(key);
 }
 
 function toggleSelectAllVisible(checked: boolean) {
   if (checked) {
-    for (const k of visibleKeys.value) selectedKeys.value.add(k);
+    for (const k of visibleKeys.value) selectedKeySet.value.add(k);
   } else {
-    for (const k of visibleKeys.value) selectedKeys.value.delete(k);
+    for (const k of visibleKeys.value) selectedKeySet.value.delete(k);
   }
 }
 
 function onColumnChange(key: string, checked: boolean) {
   columnState.value[key] = checked;
+
+  // Auto-close expanded rows when no hidden columns remain
+  const hiddenCount = allColumns.value.reduce((count, c) => count + (columnState.value[c.key] === false ? 1 : 0), 0);
+  if (hiddenCount === 0 && expandedKeys.value.size > 0) {
+    expandedKeys.value = new Set<string | number>();
+  }
+}
+
+function isRowSelected(key: string | number): boolean {
+  const set = selectedKeySet.value;
+  return set instanceof Set ? set.has(key) : false;
 }
 
 // ---------- Drag and Drop functionality
@@ -257,7 +316,9 @@ function handleDragOver(event: DragEvent, columnKey: string) {
   if (event.dataTransfer) {
     event.dataTransfer.dropEffect = 'move';
   }
-  dragOverColumn.value = columnKey;
+  if (dragOverColumn.value !== columnKey) {
+    dragOverColumn.value = columnKey;
+  }
 }
 
 function handleDragLeave(event: DragEvent) {
@@ -286,27 +347,19 @@ function handleDrop(event: DragEvent, targetColumnKey: string) {
 
   if (draggedIndex !== -1 && targetIndex !== -1) {
     // Remove dragged column from its current position
-    const removedItem = currentOrder.splice(draggedIndex, 1)[0];
+    const [moved] = currentOrder.splice(draggedIndex, 1);
 
     // Calculate insertion index
-    // We want to insert the dragged item AFTER the target position when dragging left to right
-    // and BEFORE the target position when dragging right to left
-    let newTargetIndex;
-    if (draggedIndex < targetIndex) {
-      // Dragging left to right: insert AFTER the target
-      // Since we removed the dragged item, target index shifts down by 1
-      // So we insert at the original target index (which is now targetIndex - 1 + 1 = targetIndex)
-      newTargetIndex = targetIndex;
-    } else {
-      // Dragging right to left: insert BEFORE the target
-      // Target index stays the same
-      newTargetIndex = targetIndex;
-    }
+    // AFTER the target when dragging left -> right; BEFORE the target when right -> left
+    const adjustedTargetIndex = targetIndex - (draggedIndex < targetIndex ? 1 : 0);
+    const insertIndex = draggedIndex < targetIndex ? adjustedTargetIndex + 1 : adjustedTargetIndex;
 
-    currentOrder.splice(newTargetIndex, 0, draggedColumn.value);
+    currentOrder.splice(insertIndex, 0, moved);
 
-    columnOrder.value = currentOrder;
-  } else {
+    // Normalize against current columns to avoid missing/duplicate keys
+    const allKeys = props.columns.map(c => c.key);
+    const normalizedOrder = [...allKeys].sort((a, b) => currentOrder.indexOf(a) - currentOrder.indexOf(b));
+    columnOrder.value = normalizedOrder;
   }
 
   draggedColumn.value = null;
@@ -458,7 +511,7 @@ function getCellClass(col: ColumnDef, row: Row) {
                 <input
                   type="checkbox"
                   class="transaction-table__checkbox"
-                  :checked="selectedKeys.has(keyOf(row, idx))"
+                  :checked="isRowSelected(keyOf(row, idx))"
                   @change="toggleSelectRow(keyOf(row, idx), ($event.target as HTMLInputElement).checked)"
                 />
               </td>
@@ -899,6 +952,9 @@ function getCellClass(col: ColumnDef, row: Row) {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 16px;
+    &:empty {
+      padding: 0;
+    }
   }
 
   &__detail-item {
