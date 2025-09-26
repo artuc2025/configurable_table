@@ -22,6 +22,15 @@ const props = defineProps<{
   selectedRows?: Row[];
   // Карта валют для блока "Ընդամենը" (Total). Ключ — код валюты, значение — сумма.
   currencyTotals?: Record<string, number>;
+  // === ВНЕШНИЕ ФИЛЬТРЫ через вкладки ===
+  // Ключ колонки, по значениям которой фильтруем
+  filterKey?: string;
+  // Активные значения фильтра (список). Специальное значение filterAllValue означает "Все".
+  activeFilters?: Array<string | number>;
+  // Специальное значение, представляющее вкладку "Все" (по умолчанию '__ALL__')
+  filterAllValue?: string | number;
+  // Скрывать ли колонку при одиночном выбранном значении (по умолчанию true)
+  filterHideColumnWhenSingle?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +39,8 @@ const emit = defineEmits<{
   (_event: 'update:searchQuery', _payload: string): void;
   (_event: 'update:selectedKeys', _payload: Array<string | number>): void;
   (_event: 'update:selectedRows', _payload: Row[]): void;
+  // Поддержка v-model:activeFilters (таб-фильтры управляются снаружи, компонент не эмитит изменений сам)
+  (_event: 'update:activeFilters', _payload: Array<string | number>): void;
 }>();
 
 // ---------- Search query (internal state)
@@ -40,7 +51,7 @@ watch(
   v => {
     if (typeof v === 'string' && v !== searchQuery.value) searchQuery.value = v;
     if (v == null && searchQuery.value !== '') searchQuery.value = '';
-  }
+  },
 );
 // Emit up for v-model
 watch(searchQuery, v => emit('update:searchQuery', v));
@@ -94,7 +105,7 @@ watch(
   v => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
   },
-  { deep: true }
+  { deep: true },
 );
 
 watch(
@@ -102,7 +113,7 @@ watch(
   newOrder => {
     localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(newOrder));
   },
-  { deep: true }
+  { deep: true },
 );
 
 const allColumns = computed<ColumnDef[]>(() => {
@@ -115,12 +126,44 @@ const allColumns = computed<ColumnDef[]>(() => {
   return sorted;
 });
 
+// Внешние оверрайды видимости колонок (например, скрыть/показать колонку фильтра)
+const shouldHideFilterColumn = computed<boolean>(() => {
+  const key = props.filterKey;
+  if (!key) return false;
+  const allVal = props.filterAllValue ?? '__ALL__';
+  const list = props.activeFilters;
+  if (!Array.isArray(list) || list.length === 0) return false;
+  if (list.includes(allVal)) return false;
+  return (props.filterHideColumnWhenSingle ?? true) && list.length === 1;
+});
+
+const externalColumnOverrides = computed<Record<string, boolean>>(() => {
+  const key = props.filterKey;
+  if (!key) return {};
+  // если один выбранный таб (не All) — скрываем колонку; иначе — показываем
+  return { [key]: shouldHideFilterColumn.value ? false : true };
+});
+
+const effectiveColumnState = computed<Record<string, boolean>>(() => {
+  const base: Record<string, boolean> = { ...columnState.value };
+  const overrides = externalColumnOverrides.value;
+  for (const k in overrides) base[k] = overrides[k];
+  return base;
+});
+
 const visibleColumns = computed<ColumnDef[]>(() => {
-  return allColumns.value.filter(c => columnState.value[c.key] !== false);
+  return allColumns.value.filter(c => effectiveColumnState.value[c.key] !== false);
 });
 
 const hiddenColumns = computed<ColumnDef[]>(() => {
-  return allColumns.value.filter(c => columnState.value[c.key] === false);
+  return allColumns.value.filter(c => effectiveColumnState.value[c.key] === false);
+});
+
+const configColumns = computed<ColumnDef[]>(() => {
+  const key = props.filterKey;
+  if (!key) return allColumns.value;
+  if (!shouldHideFilterColumn.value) return allColumns.value;
+  return allColumns.value.filter(c => c.key !== key);
 });
 
 // ---------- helpers
@@ -137,18 +180,30 @@ function cellValue(col: ColumnDef, row: Row) {
 }
 
 // ---------- SEARCH / FILTER
+// 1) Фильтр по внешним табам
+const rowsAfterTabs = computed<Row[]>(() => {
+  const key = props.filterKey;
+  const list = props.activeFilters;
+  if (!key || !Array.isArray(list)) return props.rows;
+  const allVal = props.filterAllValue ?? '__ALL__';
+  if (list.length === 0 || list.includes(allVal)) return props.rows;
+  const set = new Set(list);
+  return props.rows.filter(r => set.has((r as any)[key]));
+});
+
 const normalizedQuery = computed(() => searchQuery.value.toString());
 const filterKeys = computed(() =>
-  props.searchKeys && props.searchKeys.length ? props.searchKeys : allColumns.value.map(c => c.key)
+  props.searchKeys && props.searchKeys.length ? props.searchKeys : allColumns.value.map(c => c.key),
 );
 
 const filteredRows = computed<Row[]>(() => {
   const q = normalizedQuery.value;
-  if (!q) return props.rows;
-  if (props.customFilter) return props.rows.filter(r => props.customFilter!(r, q));
+  const base = rowsAfterTabs.value;
+  if (!q) return base;
+  if (props.customFilter) return base.filter(r => props.customFilter!(r, q));
 
   const query = props.caseSensitive ? q : q.toLowerCase();
-  return props.rows.filter(row => {
+  return base.filter(row => {
     for (const k of filterKeys.value) {
       const v = row[k];
       if (v == null) continue;
@@ -233,7 +288,7 @@ watch(
     } else if (v == null) {
       selectedKeySet.value = new Set();
     }
-  }
+  },
 );
 // Map keys to rows for emitting full selected row objects
 const keyToRowMap = computed<Map<string | number, Row>>(() => {
@@ -260,7 +315,7 @@ watch(
     emit('update:selectedKeys', arr);
     emit('update:selectedRows', selectedRowsComputed.value);
   },
-  { deep: true }
+  { deep: true },
 );
 
 // ключи только видимых строк (после фильтра и сортировки)
@@ -269,7 +324,7 @@ const visibleKeys = computed(() => displayRows.value.map((r, i) => keyOf(r, i)))
 const selectedVisibleCount = computed(() => visibleKeys.value.filter(k => selectedKeySet.value.has(k)).length);
 
 const allVisibleSelected = computed(
-  () => visibleKeys.value.length > 0 && selectedVisibleCount.value === visibleKeys.value.length
+  () => visibleKeys.value.length > 0 && selectedVisibleCount.value === visibleKeys.value.length,
 );
 const someVisibleSelected = computed(() => selectedVisibleCount.value > 0 && !allVisibleSelected.value);
 
@@ -470,7 +525,7 @@ function getCellClass(col: ColumnDef, row: Row) {
 
           <div v-if="isConfigOpen" class="transaction-table__config-dropdown" @click.stop>
             <div class="transaction-table__config-title">Սյունակներ</div>
-            <label v-for="c in allColumns" :key="c.key" class="transaction-table__config-item">
+            <label v-for="c in configColumns" :key="c.key" class="transaction-table__config-item">
               <input
                 class="transaction-table__config-checkbox"
                 type="checkbox"
@@ -626,7 +681,7 @@ function getCellClass(col: ColumnDef, row: Row) {
       class="transaction-table__footer-panel"
       :class="{ 'transaction-table__footer-panel--open': isFooterPanelOpen }"
     >
-      <div class="transaction-table__totals" v-if="currencyList.length">
+      <div v-if="currencyList.length" class="transaction-table__totals">
         <!-- Block 1: Total -->
         <div class="transaction-table__totals-block">
           <div class="transaction-table__totals-title">Ընդամենը</div>
