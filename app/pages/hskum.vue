@@ -230,15 +230,33 @@ const currencyTotals = {
   CNY: 1816444.9,
   USD: 44,
 };
+
+// ---------------- External Tab Filter (status) via component
+const filterKey = 'status';
+const ALL = '__ALL__';
+const activeFilters = ref<Array<string | number>>([ALL]);
 </script>
 
 <template>
   <div class="page">
     <h1 class="page__title">Գործարքների կառավարում</h1>
+    <!-- External Tabs Filter Component -->
+    <ConfigurableTableFilterTabs
+      v-model:activeFilters="activeFilters"
+      :rows="rows"
+      :filter-key="filterKey"
+      mode="multi"
+      all-label="Բոլորը"
+      :all-value="ALL"
+    />
     <ConfigurableTable
       v-model:searchQuery="search"
       v-model:selectedKeys="selected"
       v-model:selectedRows="selectedRows"
+      v-model:activeFilters="activeFilters"
+      :filter-key="filterKey"
+      :filter-all-value="ALL"
+      :filter-hide-column-when-single="true"
       table-id="transactions-table"
       :columns="columns"
       :rows="rows"
@@ -273,5 +291,7 @@ const currencyTotals = {
     color: #1f2937;
     margin-bottom: 24px;
   }
+
+  // tabs styling moved into component
 }
 </style>
