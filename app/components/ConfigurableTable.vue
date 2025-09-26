@@ -51,7 +51,7 @@ watch(
   v => {
     if (typeof v === 'string' && v !== searchQuery.value) searchQuery.value = v;
     if (v == null && searchQuery.value !== '') searchQuery.value = '';
-  },
+  }
 );
 // Emit up for v-model
 watch(searchQuery, v => emit('update:searchQuery', v));
@@ -105,7 +105,7 @@ watch(
   v => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
   },
-  { deep: true },
+  { deep: true }
 );
 
 watch(
@@ -113,7 +113,7 @@ watch(
   newOrder => {
     localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(newOrder));
   },
-  { deep: true },
+  { deep: true }
 );
 
 const allColumns = computed<ColumnDef[]>(() => {
@@ -147,7 +147,7 @@ const externalColumnOverrides = computed<Record<string, boolean>>(() => {
 const effectiveColumnState = computed<Record<string, boolean>>(() => {
   const base: Record<string, boolean> = { ...columnState.value };
   const overrides = externalColumnOverrides.value;
-  for (const k in overrides) base[k] = overrides[k];
+  for (const k in overrides) base[k] = overrides[k] ?? true;
   return base;
 });
 
@@ -193,7 +193,7 @@ const rowsAfterTabs = computed<Row[]>(() => {
 
 const normalizedQuery = computed(() => searchQuery.value.toString());
 const filterKeys = computed(() =>
-  props.searchKeys && props.searchKeys.length ? props.searchKeys : allColumns.value.map(c => c.key),
+  props.searchKeys && props.searchKeys.length ? props.searchKeys : allColumns.value.map(c => c.key)
 );
 
 const filteredRows = computed<Row[]>(() => {
@@ -288,7 +288,7 @@ watch(
     } else if (v == null) {
       selectedKeySet.value = new Set();
     }
-  },
+  }
 );
 // Map keys to rows for emitting full selected row objects
 const keyToRowMap = computed<Map<string | number, Row>>(() => {
@@ -315,7 +315,7 @@ watch(
     emit('update:selectedKeys', arr);
     emit('update:selectedRows', selectedRowsComputed.value);
   },
-  { deep: true },
+  { deep: true }
 );
 
 // ключи только видимых строк (после фильтра и сортировки)
@@ -324,7 +324,7 @@ const visibleKeys = computed(() => displayRows.value.map((r, i) => keyOf(r, i)))
 const selectedVisibleCount = computed(() => visibleKeys.value.filter(k => selectedKeySet.value.has(k)).length);
 
 const allVisibleSelected = computed(
-  () => visibleKeys.value.length > 0 && selectedVisibleCount.value === visibleKeys.value.length,
+  () => visibleKeys.value.length > 0 && selectedVisibleCount.value === visibleKeys.value.length
 );
 const someVisibleSelected = computed(() => selectedVisibleCount.value > 0 && !allVisibleSelected.value);
 

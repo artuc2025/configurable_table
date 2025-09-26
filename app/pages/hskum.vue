@@ -239,57 +239,93 @@ const activeFilters = ref<Array<string | number>>([ALL]);
 
 <template>
   <div class="page">
-    <h1 class="page__title">Գործարքների կառավարում</h1>
-    <!-- External Tabs Filter Component -->
-    <ConfigurableTableFilterTabs
-      v-model:activeFilters="activeFilters"
-      :rows="rows"
-      :filter-key="filterKey"
-      mode="multi"
-      all-label="Բոլորը"
-      :all-value="ALL"
-    />
-    <ConfigurableTable
-      v-model:searchQuery="search"
-      v-model:selectedKeys="selected"
-      v-model:selectedRows="selectedRows"
-      v-model:activeFilters="activeFilters"
-      :filter-key="filterKey"
-      :filter-all-value="ALL"
-      :filter-hide-column-when-single="true"
-      table-id="transactions-table"
-      :columns="columns"
-      :rows="rows"
-      :currency-totals="currencyTotals"
-      :initial-sort="{ key: 'date', dir: 'desc' }"
-      row-key="id"
-      :search-keys="[
-        'date',
-        'number',
-        'amount',
-        'payerAccount',
-        'accountName',
-        'recipient',
-        'recipientAccount',
-        'status',
-      ]"
-      @selectionChange="({ selectedKeys }: { selectedKeys: Array<string | number> }) => (selected = selectedKeys)"
-      @rowClick="handleRowClick"
-    />
+    <div class="page__inner">
+      <div class="page__title-wrapper">
+        <h1 class="page__title">Հաստատում</h1>
+      </div>
+      <div class="page__configurable-table-filter-tabs-wrapper">
+        <!-- External Tabs Filter Component -->
+        <ConfigurableTableFilterTabs
+          v-model:activeFilters="activeFilters"
+          :rows="rows"
+          :filter-key="filterKey"
+          mode="multi"
+          all-label="Բոլորը"
+          :all-value="ALL"
+        />
+      </div>
+      <div class="page__configurable-table-wrapper">
+        <ConfigurableTable
+          v-model:searchQuery="search"
+          v-model:selectedKeys="selected"
+          v-model:selectedRows="selectedRows"
+          v-model:activeFilters="activeFilters"
+          :filter-key="filterKey"
+          :filter-all-value="ALL"
+          :filter-hide-column-when-single="true"
+          table-id="transactions-table"
+          :columns="columns"
+          :rows="rows"
+          :currency-totals="currencyTotals"
+          :initial-sort="{ key: 'date', dir: 'desc' }"
+          row-key="id"
+          :search-keys="[
+            'date',
+            'number',
+            'amount',
+            'payerAccount',
+            'accountName',
+            'recipient',
+            'recipientAccount',
+            'status',
+          ]"
+          @selectionChange="({ selectedKeys }: { selectedKeys: Array<string | number> }) => (selected = selectedKeys)"
+          @rowClick="handleRowClick"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
-<style lang="scss" scoped>
+<style lang="scss">
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+body {
+  background: #e9edf6;
+}
 .page {
   padding: 20px;
   max-width: 1400px;
   margin: 0 auto;
 
+  &__inner {
+    background: #ffffff;
+    border-radius: 10px;
+    padding-top: 21px;
+  }
+
+  &__title-wrapper {
+    padding: 0 26px;
+  }
+
   &__title {
-    font-size: 24px;
-    font-weight: 600;
-    color: #1f2937;
-    margin-bottom: 24px;
+    font-weight: 500;
+    color: #394564;
+  }
+
+  &__configurable-table-filter-tabs-wrapper {
+    margin-top: 21px;
+    border-top: 1px solid #eaeaf1;
+    padding: 16px 26px;
+  }
+
+  &__configurable-table-wrapper {
+    border-top: 1px solid #eaeaf1;
   }
 
   // tabs styling moved into component

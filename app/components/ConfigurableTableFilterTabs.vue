@@ -85,7 +85,7 @@ function onTabClick(v: string) {
 
 <template>
   <div class="configurable-tabs" role="tablist" aria-label="External filter tabs">
-    <button
+    <div
       v-for="t in tabs"
       :key="t.value"
       class="configurable-tabs__tab"
@@ -96,7 +96,7 @@ function onTabClick(v: string) {
       @click="onTabClick(t.value)"
     >
       {{ t.label }}
-    </button>
+    </div>
   </div>
 </template>
 
@@ -104,28 +104,27 @@ function onTabClick(v: string) {
 .configurable-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
 
   &__tab {
-    padding: 6px 12px;
-    border: 1px solid #e5e7eb;
-    border-radius: 16px;
-    background: #ffffff;
-    color: #374151;
-    font-size: 13px;
+    padding: 10px 16px;
+    font-size: 14px;
+    color: rgba(57, 69, 100, 0.7);
     cursor: pointer;
     transition: all 0.2s;
-
-    &:hover {
-      background: #f9fafb;
-      border-color: #d1d5db;
-    }
+    position: relative;
 
     &--active {
-      background: #3b82f6;
-      border-color: #3b82f6;
-      color: white;
+      color: #0a64c8;
+      &::before {
+        content: '';
+
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        background: #0a64c8;
+      }
     }
   }
 }
