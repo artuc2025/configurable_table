@@ -717,17 +717,11 @@ function getCellClass(col: ColumnDef, row: Row) {
 <style lang="scss" scoped>
 .transaction-table {
   width: 100%;
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
   &__header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     padding: 16px 20px;
-    background: #f8f9fa;
     border-bottom: 1px solid #e9ecef;
   }
 
@@ -1278,32 +1272,6 @@ function getCellClass(col: ColumnDef, row: Row) {
     font-size: 13px;
     color: #111827;
     font-weight: 500;
-  }
-}
-
-// Responsive adjustments
-@media (max-width: 768px) {
-  .transaction-table {
-    &__header {
-      flex-direction: column;
-      gap: 12px;
-      align-items: stretch;
-    }
-
-    &__search {
-      max-width: none;
-    }
-
-    &__controls {
-      justify-content: flex-end;
-    }
-
-    &__details {
-      grid-template-columns: 1fr;
-    }
-    &__totals {
-      grid-template-columns: 1fr;
-    }
   }
 }
 </style>
